@@ -41,6 +41,12 @@ type tracer struct {
 	// stats are enabled.
 	stats *concentrator
 
+	// remoteconfig is responsible for periodically retrieveing updated config state
+	// from the agent.
+	//
+	// in this branch it's solely just a dummy to allow us to work with system-tests
+	remoteconfig *remoteConfigClient
+
 	// traceWriter is responsible for sending finished traces to their
 	// destination, such as the Trace Agent or Datadog Forwarder.
 	traceWriter traceWriter
@@ -196,6 +202,7 @@ func newUnstartedTracer(opts ...StartOption) *tracer {
 		out:              make(chan []*span, payloadQueueSize),
 		stop:             make(chan struct{}),
 		flush:            make(chan chan<- struct{}),
+		remoteconfig:     NewRemoteConfigClient(),
 		rulesSampling:    newRulesSampler(c.samplingRules),
 		prioritySampling: sampler,
 		pid:              strconv.Itoa(os.Getpid()),
@@ -240,6 +247,11 @@ func newTracer(opts ...StartOption) *tracer {
 	go func() {
 		defer t.wg.Done()
 		t.reportHealthMetrics(statsInterval)
+	}()
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		t.remoteconfig.Start()
 	}()
 	t.stats.Start()
 	appsec.Start()
@@ -493,6 +505,7 @@ func (t *tracer) Stop() {
 	t.traceWriter.stop()
 	t.config.statsd.Close()
 	appsec.Stop()
+	t.remoteconfig.Stop()
 }
 
 // Inject uses the configured or default TextMap Propagator.
