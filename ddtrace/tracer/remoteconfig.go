@@ -13,11 +13,13 @@ import (
 
 type remoteConfigClient struct {
 	stop chan struct{} // closing this channel triggers shutdown
+	addr string
 }
 
-func NewRemoteConfigClient() *remoteConfigClient {
+func NewRemoteConfigClient(addr string) *remoteConfigClient {
 	return &remoteConfigClient{
 		stop: make(chan struct{}),
+		addr: addr,
 	}
 }
 
@@ -43,7 +45,8 @@ var client http.Client
 func (c *remoteConfigClient) updateState() {
 	fmt.Println("doing an rc update")
 	data := buildRequest()
-	req, err := http.NewRequest("GET", "http://localhost:8162/v0.7/config", &data)
+	url := fmt.Sprintf("http://%s/v0.7/config", c.addr)
+	req, err := http.NewRequest("GET", url, &data)
 	if err != nil {
 		log.Println(err)
 		return

@@ -202,7 +202,7 @@ func newUnstartedTracer(opts ...StartOption) *tracer {
 		out:              make(chan []*span, payloadQueueSize),
 		stop:             make(chan struct{}),
 		flush:            make(chan chan<- struct{}),
-		remoteconfig:     NewRemoteConfigClient(),
+		remoteconfig:     NewRemoteConfigClient(c.agentAddr),
 		rulesSampling:    newRulesSampler(c.samplingRules),
 		prioritySampling: sampler,
 		pid:              strconv.Itoa(os.Getpid()),
