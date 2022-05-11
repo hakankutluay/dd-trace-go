@@ -18,7 +18,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/internal/log"
 )
 
-var _ driver.Conn = (*tracedConn)(nil)
+var _ driver.Conn = (*TracedConn)(nil)
 
 type queryType string
 
@@ -34,12 +34,12 @@ const (
 	queryTypeRollback           = "Rollback"
 )
 
-type tracedConn struct {
+type TracedConn struct {
 	driver.Conn
 	*traceParams
 }
 
-func (tc *tracedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (tx driver.Tx, err error) {
+func (tc *TracedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (tx driver.Tx, err error) {
 	start := time.Now()
 	if connBeginTx, ok := tc.Conn.(driver.ConnBeginTx); ok {
 		tx, err = connBeginTx.BeginTx(ctx, opts)
@@ -57,7 +57,7 @@ func (tc *tracedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (tx dr
 	return &tracedTx{tx, tc.traceParams, ctx}, nil
 }
 
-func (tc *tracedConn) PrepareContext(ctx context.Context, query string) (stmt driver.Stmt, err error) {
+func (tc *TracedConn) PrepareContext(ctx context.Context, query string) (stmt driver.Stmt, err error) {
 	start := time.Now()
 	if connPrepareCtx, ok := tc.Conn.(driver.ConnPrepareContext); ok {
 		cquery, spanID := tc.withSQLCommentsInjected(ctx, query, true)
@@ -87,7 +87,7 @@ func (tc *tracedConn) PrepareContext(ctx context.Context, query string) (stmt dr
 	return &tracedStmt{Stmt: stmt, traceParams: tc.traceParams, ctx: ctx, query: query}, nil
 }
 
-func (tc *tracedConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (r driver.Result, err error) {
+func (tc *TracedConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (r driver.Result, err error) {
 	start := time.Now()
 	if execContext, ok := tc.Conn.(driver.ExecerContext); ok {
 		cquery, spanID := tc.withSQLCommentsInjected(ctx, query, false)
@@ -121,8 +121,8 @@ func (tc *tracedConn) ExecContext(ctx context.Context, query string, args []driv
 	return nil, driver.ErrSkip
 }
 
-// tracedConn has a Ping method in order to implement the pinger interface
-func (tc *tracedConn) Ping(ctx context.Context) (err error) {
+// TracedConn has a Ping method in order to implement the pinger interface
+func (tc *TracedConn) Ping(ctx context.Context) (err error) {
 	start := time.Now()
 	if pinger, ok := tc.Conn.(driver.Pinger); ok {
 		err = pinger.Ping(ctx)
@@ -135,7 +135,7 @@ func (tc *tracedConn) Ping(ctx context.Context) (err error) {
 	return err
 }
 
-func (tc *tracedConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (rows driver.Rows, err error) {
+func (tc *TracedConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (rows driver.Rows, err error) {
 	start := time.Now()
 	if queryerContext, ok := tc.Conn.(driver.QueryerContext); ok {
 		cquery, spanID := tc.withSQLCommentsInjected(ctx, query, false)
@@ -169,17 +169,17 @@ func (tc *tracedConn) QueryContext(ctx context.Context, query string, args []dri
 	return nil, driver.ErrSkip
 }
 
-func (tc *tracedConn) CheckNamedValue(value *driver.NamedValue) error {
+func (tc *TracedConn) CheckNamedValue(value *driver.NamedValue) error {
 	if checker, ok := tc.Conn.(driver.NamedValueChecker); ok {
 		return checker.CheckNamedValue(value)
 	}
 	return driver.ErrSkip
 }
 
-var _ driver.SessionResetter = (*tracedConn)(nil)
+var _ driver.SessionResetter = (*TracedConn)(nil)
 
 // ResetSession implements driver.SessionResetter
-func (tc *tracedConn) ResetSession(ctx context.Context) error {
+func (tc *TracedConn) ResetSession(ctx context.Context) error {
 	if resetter, ok := tc.Conn.(driver.SessionResetter); ok {
 		return resetter.ResetSession(ctx)
 	}
