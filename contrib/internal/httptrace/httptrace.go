@@ -21,7 +21,14 @@ import (
 // StartRequestSpan starts an HTTP request span with the standard list of HTTP request span tags. URL query parameters
 // are added to the URL tag when queryParams is true. Any further span start option can be added with opts.
 func StartRequestSpan(r *http.Request, service, resource string, queryParams bool, opts ...ddtrace.StartSpanOption) (tracer.Span, context.Context) {
-	path := r.URL.Path
+	scheme := "http"
+	path := r.URL.RawPath
+	if path == "" {
+		path = r.URL.Path
+	}
+	if r.TLS != nil {
+		scheme += "s"
+	}
 	if queryParams {
 		path += "?" + r.URL.RawQuery
 	}
@@ -30,7 +37,7 @@ func StartRequestSpan(r *http.Request, service, resource string, queryParams boo
 		tracer.ServiceName(service),
 		tracer.ResourceName(resource),
 		tracer.Tag(ext.HTTPMethod, r.Method),
-		tracer.Tag(ext.HTTPURL, path),
+		tracer.Tag(ext.HTTPURL, scheme+"://"+r.Host+path),
 		tracer.Tag(ext.HTTPUserAgent, r.UserAgent()),
 	}, opts...)
 	if r.URL.Host != "" {
