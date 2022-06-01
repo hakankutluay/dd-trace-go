@@ -106,7 +106,7 @@ func TestChildWrapperSpan(t *testing.T) {
 
 	// Call WithContext before WrapQuery to prove WrapQuery needs to use the query.Context()
 	// instead of context.Background()
-	q := session.Query("SELECT * from trace.person").WithContext(ctx)
+	q := session.Query("SELECT * FROM trace.person").WithContext(ctx)
 	tq := WrapQuery(q, WithServiceName("TestServiceName"))
 	iter := tq.Iter()
 	iter.Close()
@@ -126,13 +126,42 @@ func TestChildWrapperSpan(t *testing.T) {
 	assert.Equal(pSpan.OperationName(), "parentSpan")
 	assert.Equal(childSpan.ParentID(), pSpan.SpanID())
 	assert.Equal(childSpan.OperationName(), ext.CassandraQuery)
-	assert.Equal(childSpan.Tag(ext.ResourceName), "SELECT * from trace.person")
+	assert.Equal(childSpan.Tag(ext.ResourceName), "SELECT * FROM trace.person")
 	assert.Equal(childSpan.Tag(ext.CassandraKeyspace), "trace")
 	if iter.Host() != nil {
 		assert.Equal(childSpan.Tag(ext.TargetPort), "9042")
 		assert.Equal(childSpan.Tag(ext.TargetHost), iter.Host().HostID())
 		assert.Equal(childSpan.Tag(ext.CassandraCluster), "datacenter1")
 	}
+}
+
+func TestErrNotFound(t *testing.T) {
+	assert := assert.New(t)
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	cluster := newCassandraCluster()
+	session, err := cluster.CreateSession()
+	assert.Nil(err)
+
+	// Call WithContext before WrapQuery to prove WrapQuery needs to use the query.Context()
+	// instead of context.Background()
+	q := session.Query("SELECT name, age FROM trace.person WHERE name = 'This does not exist'")
+	tq := WrapQuery(q, WithServiceName("TestServiceName"))
+	var name string
+	var age int
+	err = tq.Scan(&name, &age)
+	assert.Equal(gocql.ErrNotFound, err, "expected error: there is no data")
+	assert.Equal("", name)
+	assert.Equal(0, age)
+
+	spans := mt.FinishedSpans()
+	assert.Len(spans, 1)
+
+	span := spans[0]
+	assert.Equal(span.OperationName(), ext.CassandraQuery)
+	assert.Equal(span.Tag(ext.ResourceName), "SELECT name, age FROM trace.person WHERE name = 'This does not exist'")
+	assert.Nil(span.Tag(ext.Error), "trace is not marked as an error, it just has no data")
 }
 
 func TestAnalyticsSettings(t *testing.T) {
